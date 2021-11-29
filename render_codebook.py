@@ -51,8 +51,8 @@ def generate_codebook_imgs(path_model,dir_imgs,dir_edges, path_obj_bbs,path_rot,
     pad_factor = float(1.2)
 
     t = np.array([0, 0, float(700)])
-    model = inout.load_ply(path_model)
-    model['pts']*=depth_scale
+    model = inout.load_ply(path_model) # PLYファイルから3Dメッシュモデルを読み込む
+    model['pts']*=depth_scale 
 
     if start_end is None:
         search_range=range(0,view_Rs.shape[0])
