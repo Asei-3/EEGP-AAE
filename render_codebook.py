@@ -13,11 +13,10 @@ from pysixd_stuff.pysixd import renderer_vt
 from pysixd_stuff.pysixd import view_sampler
 import data_utils
 
-
 def generate_codebook_imgs(path_model,dir_imgs,dir_edges, path_obj_bbs,path_rot,render_dims,cam_K,depth_scale=1.,texture_img=None,start_end=None):
-    if not os.path.exists(dir_imgs):
+    if not os.path.exists(dir_imgs): # RGB画像の保存先にdirがなければ作成する．
         os.makedirs(dir_imgs)
-    if not os.path.exists(dir_edges):
+    if not os.path.exists(dir_edges): # Edge画像の保存先にdirがなければ作成する．
         os.makedirs(dir_edges)
 
     view_Rs=data_utils.viewsphere_for_embedding_v2(num_sample_views=2500,num_cyclo=36,use_hinter=True)
@@ -84,29 +83,29 @@ def generate_codebook_imgs(path_model,dir_imgs,dir_edges, path_obj_bbs,path_rot,
 
 if __name__=='__main__':
 	#Rendered by batch, with batch size=50
-    obj_id=int(sys.argv[1])
-    bid=int(sys.argv[2])
+    obj_id=int(sys.argv[1]) # 物体id:1-30
+    bid=int(sys.argv[2]) # batch_id:謎
     batch_size=50
-    path_model ='./ws/meshes/obj_{:02d}.ply'.format(obj_id)#Path of the 3D mesh ply file
-    dir_out='./embedding92232s/{:02d}/'.format(obj_id) #dir to save the rendered images, edgemaps, 2D bounding box, sampled rotations
-    dir_imgs = os.path.join(dir_out,'imgs')
-    dir_edges= os.path.join(dir_out,'in_edges2')
-    path_obj_bbs= os.path.join(dir_out,'obj_bbs')
-    path_rot=os.path.join(dir_out,'rot_infos')
+    path_model ='./ws/meshes/obj_{:02d}.ply'.format(obj_id) # Path of the 3D mesh ply file． 3dモデルのplyファイルの指定
+    dir_out='./embedding92232s/{:02d}/'.format(obj_id) # レンダリング画像（RGB・Edge）や物体検出時の2dBBoxの情報，サンプル？の回転情報を保存するdirのパス
+    dir_imgs = os.path.join(dir_out,'imgs') # ./embedding92232s/00/imgs
+    dir_edges= os.path.join(dir_out,'in_edges2') # ./embedding92232s/00/in_edges2
+    path_obj_bbs= os.path.join(dir_out,'obj_bbs') # ./embedding92232s/00/obj_bbs
+    path_rot=os.path.join(dir_out,'rot_infos') # ./embedding92232s/00/rot_infos
 
-    path_texture=None
-    texture_img_rgb=None
-    if path_texture:
+    path_texture=None # T-LESSなのでTextureなし
+    texture_img_rgb=None # T-LESSなのでTextureのRGB画像もなし
+    if path_texture: # 今回はNoneなので無視
         texture_img_bgr=cv2.imread(path_texture['{:02d}'.format(obj_id)])
         texture_img_rgb=texture_img_bgr[:,:,2::-1]
 
     generate_codebook_imgs(path_model=path_model,
-                           dir_imgs=dir_imgs,
-                           dir_edges=dir_edges,
-                           path_obj_bbs=path_obj_bbs,
-                           path_rot=path_rot,
-                           render_dims=(720,540),
-                           cam_K=[1075.65, 0, 720 / 2, 0, 1073.90, 540 / 2, 0, 0, 1],
-                           depth_scale=1.,
-                           texture_img=texture_img_rgb,
-                           start_end=[bid*batch_size,(bid+1)*batch_size])
+                           dir_imgs=dir_imgs, # RGB画像のパス
+                           dir_edges=dir_edges, # Edge画像のパス
+                           path_obj_bbs=path_obj_bbs, # 2d BBoxのパス
+                           path_rot=path_rot, # サンプル?の回転行列のパス
+                           render_dims=(720,540), # 画像のサイズ
+                           cam_K=[1075.65, 0, 720 / 2, 0, 1073.90, 540 / 2, 0, 0, 1], # カメラ行列：cam_K=[f_x, 0, c_x(=w/2), 0, f_y, c_y(=h_2), 0, 0, 1]
+                           depth_scale=1., # depth mapにこの値を掛けると，深度[mm]が求まる．今回はdepth mapの値=深度[mm]
+                           texture_img=texture_img_rgb, # 今回はNone
+                           start_end=[bid*batch_size,(bid+1)*batch_size]) # たぶん分割して実施する際のやつ．batch_size=50，bid=0の場合，start_end=[0, 50]
