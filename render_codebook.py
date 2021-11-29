@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # This is to sample rotations for the inference template poses \bar(R), or the training reference rotations R_c used in geometric prior
 # For each sampled rotation, its rendered BGR image, edgemap, 2D boundingbox, and rotations will be generated and preserved
+# これは推論テンプレートのポーズ\bar(R)、または幾何学的事前処理で使用される学習参照回転R_cの回転をサンプリングするものです。
+# サンプリングされた各回転に対して、そのレンダリングされたBGR画像、エッジマップ、2Dバウンディングボックス、回転が生成・保存されます。
 import numpy as np
 import progressbar
 import cv2
