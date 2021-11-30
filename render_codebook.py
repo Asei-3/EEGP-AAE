@@ -20,6 +20,7 @@ def generate_codebook_imgs(path_model,dir_imgs,dir_edges, path_obj_bbs,path_rot,
         os.makedirs(dir_edges)
 
     view_Rs=data_utils.viewsphere_for_embedding_v2(num_sample_views=2500,num_cyclo=36,use_hinter=True)
+# -> Rs
     #data_utils.viewsphere_for_embedding_v2(num_sample_views=2500,num_cyclo=36,use_hinter=True)
     #For reference R_c: view_Rs=data_utils.viewsphere_for_embedding_v2(num_sample_views=400,num_cyclo=20,use_hinter=False)
 
@@ -28,12 +29,12 @@ def generate_codebook_imgs(path_model,dir_imgs,dir_edges, path_obj_bbs,path_rot,
     #use_hinter=True: hinter sampling; use_hinter=False: fabonicci sampling
 
 
-    np.savez(path_rot,rots=view_Rs)
+    np.savez(path_rot,rots=view_Rs) # ./embedding92232s/00/rot_infos, Rs
     embedding_size = view_Rs.shape[0]
 
     out_shape=(128,128,3)
     if start_end and start_end[0]!=0:
-        obj_bbs=np.load(path_obj_bbs+'.npy')
+        obj_bbs=np.load(path_obj_bbs+'.npy') # ./embedding92232s/00/obj_bbs.npy
     else:
         obj_bbs = np.empty((embedding_size, 4))
     print('Creating embedding ..')
