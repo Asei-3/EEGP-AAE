@@ -126,19 +126,36 @@ def viewsphere_for_embedding(num_sample_views=1000,num_cyclo=36,render_dist=700.
     print('Rs shape: ',Rs.shape)
     return Rs
 
-def viewsphere_for_embedding_v2(num_sample_views=1000,num_cyclo=36,render_dist=700.0,use_hinter=True):
-    azimuth_range = (0, 2 * np.pi)
-    elev_range = (-0.5 * np.pi, 0.5 * np.pi)
+def viewsphere_for_embedding_v2(num_sample_views=1000,num_cyclo=36,render_dist=700.0,use_hinter=True): # 撮影点：1000*36（10°刻み？），fz=700[mm], use_hinter:よくわからんけど，pysixd_stuffの機能の１つなのでTrueで
+    azimuth_range = (0, 2 * np.pi) # 方位角：0-2π
+    elev_range = (-0.5 * np.pi, 0.5 * np.pi) # 仰角：-π/2～π/2
     views, _ = view_sampler.sample_views(
-        num_sample_views,
-        render_dist,
-        azimuth_range,
-        elev_range,
-        use_hinter
+        num_sample_views, # min_n_views=1000
+        render_dist, # fz=700
+        azimuth_range, # 0-2π
+        elev_range, # -π/2～π/2
+        use_hinter # True
     )
-    Rs = np.empty( (len(views)*num_cyclo, 3, 3) )
+# -> 3x3の回転行列と3x1の並進ベクトルで表されるビューのリスト:views.append({'R': R, 't': t})
+
+# 視点球からの視点のサンプリングを行います。
+#     :param min_n_views: :param min_n_views: 視点の最小数を指定します．
+#     :param radius: 視錘体の半径．
+#     :param azimuth_range: param azimuth_range: 視点をサンプリングする方位角の範囲．
+#     :param elev_range: 水平方向の範囲．param elev_range: 視点がサンプリングされる標高範囲．
+#     :return: それぞれのビューは，3x3の回転行列と3x1の並進ベクトルで表現されます．
+
+    Rs = np.empty( (len(views)*num_cyclo, 3, 3) ) # 10°間隔?, 空の配列
     i = 0
     cyclo_space = np.linspace(0, 2. * np.pi, num_cyclo + 1)[:-1]
+#-> array([0.        , 0.17453293, 0.34906585, 0.52359878, 0.6981317 ,
+#        0.87266463, 1.04719755, 1.22173048, 1.3962634 , 1.57079633,
+#        1.74532925, 1.91986218, 2.0943951 , 2.26892803, 2.44346095,
+#        2.61799388, 2.7925268 , 2.96705973, 3.14159265, 3.31612558,
+#        3.4906585 , 3.66519143, 3.83972435, 4.01425728, 4.1887902 ,
+#        4.36332313, 4.53785606, 4.71238898, 4.88692191, 5.06145483,
+#        5.23598776, 5.41052068, 5.58505361, 5.75958653, 5.93411946,
+#        6.10865238])
     #print('cyclo_space',cyclo_space)
     for view in views:
         for cyclo in cyclo_space:#np.linspace(0, 2.*np.pi, num_cyclo+1):
