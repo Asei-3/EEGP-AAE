@@ -30,14 +30,28 @@ def fibonacci_sampling(n_pts, radius=1):
     :param n_pts: Number of required points (an odd number).
     :param radius: Radius of the view sphere.
     :return: List of 3D points on the sphere surface.
+    FIB関数は、単位球上のフィボナッチ格子から、任意の奇数個のほぼ等距離の点を返します。
+
+    緯度（仰角）は、X軸を中心とした回転角を表します。
+    経度（方位）は、Z軸を中心とした回転角を表します。
+
+    参考文献
+    [1] https://arxiv.org/pdf/0912.4540.pdf
+    [2] http://stackoverflow.com/questions/34302938/map-point-to-closest-point-on-fibonacci-lattice
+    [3] http://stackoverflow.com/questions/9600801/evenly-distributing-n-points-on-a-sphere
+    [4] https://www.openprocessing.org/sketch/41142
+
+    :param n_pts: 必要な点の数（奇数）．
+    :param radius: :param radius: 視点球の半径を指定します．
+    :return: 球面上の3次元点のリスト．
     '''
 
-    assert(n_pts % 2 == 1) # Needs to be an odd number [1]
-    n_pts_half = int(n_pts / 2)
+    assert(n_pts % 2 == 1) # Needs to be an odd number [1] #奇数じゃないとダメ
+    n_pts_half = int(n_pts / 2) # int((1000+1)/2)=500 
 
-    phi = (math.sqrt(5.0) + 1.0) / 2.0 # Golden ratio
-    phi_inv = phi - 1.0
-    ga = 2.0 * math.pi * phi_inv # Complementary of golden angle
+    phi = (math.sqrt(5.0) + 1.0) / 2.0 # Golden ratio：黄金比, 1.618
+    phi_inv = phi - 1.0 # 0.618
+    ga = 2.0 * math.pi * phi_inv # Complementary of golden angle:黄金角の補数
 
     pts = []
     for i in range(-n_pts_half, n_pts_half + 1):
@@ -46,6 +60,7 @@ def fibonacci_sampling(n_pts, radius=1):
         # print(str(i + n_pts_half + 1) + ' (lat, lon): ' + str(lat) + ' ' + str(lon))
 
         # Convert the latitude and longitude angles to 3D coordinates
+        # 緯度・経度の角度を3次元座標に変換する
         s = math.cos(lat) * radius
         x, y, z = math.cos(lon) * s, math.sin(lon) * s, math.tan(lat) * s
         pts.append([x, y, z])
@@ -53,6 +68,16 @@ def fibonacci_sampling(n_pts, radius=1):
         # Calculate rotation matrix and translation vector
         # Note: lat,lon=0,0 is a camera looking to the sphere center from
         # (-radius, 0, 0) in the world (i.e. sphere) coordinate system
+        # pi_half = 0.5 * math.pi
+        # alpha_x = -lat - pi_half
+        # alpha_z = lon + pi_half
+        # R_x = transform.rotation_matrix(alpha_x, [1, 0, 0])[:3, :3]
+        # R_z = transform.rotation_matrix(alpha_z, [0, 0, 1])[:3, :3]
+        # R = np.linalg.inv(R_z.dot(R_x))
+        # t = -R.dot(np.array([x, y, z]).reshape((3, 1)))
+        # 回転行列と並進ベクトルの計算
+        # 注：lat,lon=0,0は、カメラが球の中心を見ていることを意味します。
+        # (-radius, 0, 0)から球体の中心を見た場合
         # pi_half = 0.5 * math.pi
         # alpha_x = -lat - pi_half
         # alpha_z = lon + pi_half
@@ -75,7 +100,7 @@ def hinter_sampling(min_n_pts, radius=1):
              refinement level the points were created.
     '''
 
-    # Get vertices and faces of icosahedron
+    # Get vertices and faces of icosahedron:正二十面体の頂点と面の取得
     a, b, c = 0.0, 1.0, (1.0 + math.sqrt(5.0)) / 2.0
     pts = [(-b, c, a), (b, c, a), (-b, -c, a), (b, -c, a), (a, -b, c), (a, b, c),
            (a, -b, -c), (a, b, -c), (c, a, -b), (c, a, b), (-c, a, -b), (-c, a, b)]
@@ -84,13 +109,13 @@ def hinter_sampling(min_n_pts, radius=1):
              (3, 2, 6), (3, 6, 8), (3, 8, 9), (4, 9, 5), (2, 4, 11), (6, 2, 10),
              (8, 6, 7), (9, 8, 1)]
 
-    # Refinement level on which the points were created
+    # Refinement level on which the points were created:ポイントが作成されたときの洗練度
     pts_level = [0 for _ in range(len(pts))]
 
     ref_level = 0
     while len(pts) < min_n_pts:
         ref_level += 1
-        edge_pt_map = {} # Mapping from an edge to a newly added point on that edge
+        edge_pt_map = {} # Mapping from an edge to a newly added point on that edge:エッジから、そのエッジ上に新たに追加された点へのマッピング
         faces_new = [] # New set of faces
 
         # Each face is replaced by 4 new smaller faces
@@ -99,11 +124,12 @@ def hinter_sampling(min_n_pts, radius=1):
             for i in range(3):
                 # Add a new point if this edge hasn't been processed yet,
                 # or get ID of the already added point.
+#                 このエッジがまだ処理されていない場合は新しいポイントを追加し、すでに追加されたポイントのIDを取得します。
                 edge = (face[i], face[(i + 1) % 3])
                 edge = (min(edge), max(edge))
                 if edge not in edge_pt_map.keys():
                     pt_new_id = len(pts)
-                    edge_pt_map[edge] = pt_new_id
+                    edge_pt_map[edge] = pt_new_id                                                            
                     pt_inds.append(pt_new_id)
 
                     pt_new = 0.5 * (np.array(pts[edge[0]]) + np.array(pts[edge[1]]))
@@ -178,10 +204,16 @@ def sample_views(min_n_views, radius=1,
     :param elev_range: Elevation range from which the viewpoints are sampled.
     :return: List of views, each represented by a 3x3 rotation matrix and
              a 3x1 translation vector.
+     視点球からの視点のサンプリングを行います。
+    :param min_n_views: :param min_n_views: 視点の最小数を指定します．
+    :param radius: 視錘体の半径．
+    :param azimuth_range: param azimuth_range: 視点をサンプリングする方位角の範囲．
+    :param elev_range: 水平方向の範囲．param elev_range: 視点がサンプリングされる標高範囲．
+    :return: それぞれのビューは，3x3の回転行列と3x1の並進ベクトルで表現されます．
     '''
 
-    # Get points on a sphere
-    if use_hinter:
+    # Get points on a sphere:球体での点を獲得
+    if use_hinter: # 今回はTrue
         pts, pts_level = hinter_sampling(min_n_views, radius=radius)
     else:
         pts = fibonacci_sampling(min_n_views + 1, radius=radius)
