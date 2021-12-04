@@ -29,14 +29,14 @@ STRIDES =[2, 2, 2, 2]
 BATCH_NORM = False
 image_size=128
 embedding_dim = 128
-num_embeddings = 92232
-K_train = np.array([1075.65, 0, 720 / 2, 0, 1073.90, 540 / 2, 0, 0, 1]).reshape(3, 3)#Should be consistent with \bar_R images
-Radius_render_train = 700
+num_embeddings = 92232 # embedd画像の枚数 
+K_train = np.array([1075.65, 0, 720 / 2, 0, 1073.90, 540 / 2, 0, 0, 1]).reshape(3, 3) # 学習時のカメラ行列.Should be consistent with \bar_R images
+Radius_render_train = 700 # 焦点距離
 
-K_test = np.array([1075.65091572, 0.0, 374.06888344, 0.0, 1073.90347929, 255.72159802, 0.0, 0.0, 1.0]).reshape(3,3)
-experiment_name='subdiv_{:02d}_softmax_edge'.format(obj_id)
+K_test = np.array([1075.65091572, 0.0, 374.06888344, 0.0, 1073.90347929, 255.72159802, 0.0, 0.0, 1.0]).reshape(3,3) # テスト時のカメラ行列
+experiment_name='subdiv_{:02d}_softmax_edge'.format(obj_id) 
 path_workspath='./ws/'
-path_embedding_data='./embedding92232s/{:02d}'.format(obj_id)#path to dir of info \bar_R
+path_embedding_data='./embedding92232s/{:02d}'.format(obj_id) # embedd画像の入ったディレクトリ #path to dir of info \bar_R
 
 #### Step 0: Load pose estimation network
 class Encoder(snt.AbstractModule):
@@ -99,7 +99,7 @@ class Encoder(snt.AbstractModule):
         return self.z
 
 
-class VectorQuantizer(snt.AbstractModule):
+class VectorQuantizer(snt.AbstractModule): # ベクトル量子化器
     def __init__(self, embedding_dim, num_embeddings, name='vq_center'):
         super(VectorQuantizer, self).__init__(name=name)
         self._embedding_dim = embedding_dim
@@ -161,7 +161,7 @@ with sess_estpose.as_default():
         arr_codebook = np.load(os.path.join(path_embedding_data,'edgeLambda250_codebook.npy'))
         sess_estpose.run(embedding_assign_op, {embedding: arr_codebook.T})
 
-if use_retinanet:
+if use_retinanet: # retinanetを使う場合
 	#### Step 0: Load 2D detection network (Retina)
 	print('Step 0, Load Retina Net')
 	graph_detect=tf.Graph()
@@ -172,7 +172,7 @@ if use_retinanet:
 	        detection_model = models.load_model(detection_model_path, backbone_name='resnet50')
 
 	print('Step 0, Load RGB image')
-	image = cv2.imread('./demo_data/0001.png')
+	image = cv2.imread('./demo_data/0001.png') # テスト画像:0001.pngの読み込み->全部行くならfor文で回せばおけ
 
 	#### Step 1: 2D detection 
 	print('Step 1, 2D detection')
@@ -186,38 +186,42 @@ if use_retinanet:
 	        boxes, scores, labels = detection_model.predict_on_batch(np.expand_dims(detect_image, axis=0))
 
 	        # correct for image scale
-	        boxes /= scale
+	        boxes /= scale # boxes = boxes / scale = boxes / sclae <- ressize_imageから（faster-aae-tless/codebook_render/boxes.py） 
 
 	        obj_bb=None
 	        # visualize detections
 	        for box, score, label in zip(boxes[0], scores[0], labels[0]):        
 	            if score<0.:
 	            	break
-	            if label+1==obj_id:
-	            	obj_bb=np.array(box).astype(int)
-	            	obj_bb[2]-=obj_bb[0]
-	            	obj_bb[3]-=obj_bb[1]
+	            if label+1==obj_id: # obj_idは自分で決める
+	            	obj_bb=np.array(box).astype(int) # (x1,y1,x2,y2)
+	            	obj_bb[2]-=obj_bb[0] # obj_bb[2] = obj_bb[2] - obj_bb[0] = x2-x1 = width
+	            	obj_bb[3]-=obj_bb[1] # obj_bb[3] = obj_bb[3] - obj_bb[1] = y2-y1 = height
+			# obj_bb:(x1,y1,x2,y2)-> (x1,y1,width,height)
 	            	break
-	if obj_bb is None:
-	    print('No valid detection')
-	    exit(0)
+	if obj_bb is None: # 検出器のbbがNoneならば
+	    print('No valid detection') # 有効な検出無し
+	    exit(0) # 終了
 
 
-else:
+else: # retinanetを使わない場合
 	print('Step 0, Load RGB image')
 	image = cv2.imread('./demo_data/0001.png')
 
 	#### Step 1: 2D detection 
 	print('Step 1, 2D detection')
-	obj_bb=np.array([352,112,176,167],dtype=np.int32)
+	obj_bb=np.array([352,112,176,167],dtype=np.int32) # 検出器の情報ではなく，GTのBBox情報を自分で与えている
 
 
 #obj_bb is the 2D bounding box on the image, with 4 elements: x,y,w,h; where (x,y) is the location of the left-top corner
-#Thus center 2D location is (x+w/2, h+w/2)
+#Thus center 2D location is (x+w/2, h+w/2) <- ミスやと思われ
+# obj_bbは，画像上の2次元バウンディングボックスで、x,y,w,hの4要素を持ちます；(x,y)は左上隅の位置です
+# センターの2D位置は(x+w/2, y+h/2)となります。-> cx = x+w/2, cy = y+h/2
 verbose=False
-if verbose:
+if verbose: # 検出領域を表示するか否か
     image_vis=image.copy()
     cv2.rectangle(image_vis,(obj_bb[0],obj_bb[1]),(obj_bb[0]+obj_bb[2],obj_bb[1]+obj_bb[3]),(255,0,0),2)
+    # -> cv2.rectangle(画像，(左上の座標：x1=x,y1=y), (右下の座標：x2=x+w,y2=y+h), color:(B,G,R)=(255,0,0)より青線, 線の太さ：2pix)
     cv2.imshow('img',image_vis)
     cv2.waitKey()
 
@@ -234,10 +238,10 @@ with sess_estpose.as_default():
         top = int(np.max([y + h // 2 - size // 2, 0]))
         bottom = int(np.min([y + h // 2 + size // 2, H]))
 
-        crop = img_bgr[top:bottom, left:right].copy()
-        query_bgr = cv2.resize(crop, (image_size,image_size))
-        query_edge = np.expand_dims(cv2.Canny(query_bgr, 50, 150),2)
-        query = np.expand_dims((np.concatenate((query_bgr, query_edge), axis=-1) /255.),0)
+        crop = img_bgr[top:bottom, left:right].copy() # 画像からはみ出ないサイズにBBoxを拡張して，RGB画像のその領域のみをcropとして保持
+        query_bgr = cv2.resize(crop, (image_size,image_size)) # RGB画像（対象物体領域）を128x128へリサイズ
+        query_edge = np.expand_dims(cv2.Canny(query_bgr, 50, 150),2) # Canny法でEdge化
+        query = np.expand_dims((np.concatenate((query_bgr, query_edge), axis=-1) /255.),0) # 対象物体のRGB画像とEdge画像をconcatし，queryとする
 
         idx=sess_estpose.run([nn_item],feed_dict={I_x:query})
         idx=idx[0]['encoding_indices'][0]
@@ -251,7 +255,7 @@ with sess_estpose.as_default():
             cv2.waitKey()
 
         est_translation=True
-        if est_translation:#If we do not know the depth, and it is required to be calculated
+        if est_translation:#If we do not know the depth, and it is required to be calculated. Depth情報が不明な場合：RGBのみで姿勢推定する場合
             K00_ratio = K_test[0, 0] / K_train[0, 0]
             K11_ratio = K_test[1, 1] / K_train[1, 1]
 
