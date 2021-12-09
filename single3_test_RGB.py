@@ -38,7 +38,7 @@ experiment_name='subdiv_{:02d}_softmax_edge'.format(obj_id)
 path_workspath='./ws/'
 path_embedding_data='./embedding92232s/{:02d}'.format(obj_id) # embedd画像の入ったディレクトリ #path to dir of info \bar_R
 
-#### Step 0: Load pose estimation network
+#### Step 0: 姿勢推定ネットワークのロード
 class Encoder(snt.AbstractModule):
     def __init__(self, latent_space_size, num_filters, kernel_size, strides, batch_norm, name='encoder'):
         super(Encoder, self).__init__(name=name)
@@ -99,7 +99,7 @@ class Encoder(snt.AbstractModule):
         return self.z
 
 
-class VectorQuantizer(snt.AbstractModule): # ベクトル量子化器
+class VectorQuantizer(snt.AbstractModule): # ベクトル量子化器, bit数落として軽量化 or 単純に全結合層の役割．いまいちわかってない．
     def __init__(self, embedding_dim, num_embeddings, name='vq_center'):
         super(VectorQuantizer, self).__init__(name=name)
         self._embedding_dim = embedding_dim
@@ -126,25 +126,25 @@ class VectorQuantizer(snt.AbstractModule): # ベクトル量子化器
         return self._w
 
 
-# Build modules.
+# モジュールの構築
 graph_estpose=tf.Graph()
 with graph_estpose.as_default():
     with tf.variable_scope(experiment_name):
-        I_x = tf.placeholder(tf.float32, shape=(None, image_size, image_size, 4))
+        I_x = tf.placeholder(tf.float32, shape=(None, image_size, image_size, 4)) # tf.placeholder:空の配列みたいなもん．image_size=128.
         with tf.variable_scope('encoder'):
             encoder = Encoder(latent_space_size=LATENT_SPACE_SIZE,num_filters=NUM_FILTER,kernel_size=KERNEL_SIZE_ENCODER,strides=STRIDES,batch_norm=BATCH_NORM)
-        z = encoder(I_x)
+        z = encoder(I_x) # 潜在変数:z=128
         network_vars = tf.trainable_variables()
         print(network_vars)
-        vq_codebook = VectorQuantizer(embedding_dim=embedding_dim,num_embeddings=num_embeddings)
+        vq_codebook = VectorQuantizer(embedding_dim=embedding_dim,num_embeddings=num_embeddings) # codebook作成．たぶん学習済みモデルにembedd画像を入れて潜在変数化してる気がする
 
         # For evaluation, make sure is_training=False!
         with tf.variable_scope('validation'):
             nn_item = vq_codebook(z)
 
         # Bounding box informations for foreground model in pose template repository
-        codebook_obj_bbs = np.load(os.path.join(path_embedding_data,'obj_bbs.npy'))
-        codebook_rotations = np.load(os.path.join(path_embedding_data,'rot_infos.npz'))['rots']
+        codebook_obj_bbs = np.load(os.path.join(path_embedding_data,'obj_bbs.npy')) # (92232, 4). x1,y1,w,h
+        codebook_rotations = np.load(os.path.join(path_embedding_data,'rot_infos.npz'))['rots'] # (92232, 3, 3). 何軸回転かは不明．
 
     saver = tf.train.Saver(network_vars, save_relative_paths=False)
     embedding = tf.placeholder(tf.float32, shape=[embedding_dim, num_embeddings])
@@ -154,7 +154,7 @@ with graph_estpose.as_default():
 gpu_options = tf.GPUOptions(allow_growth=True, per_process_gpu_memory_fraction=0.9)
 config = tf.ConfigProto(gpu_options=gpu_options)
 sess_estpose=tf.Session(graph=graph_estpose,config=config)
-print('Step 0, Load Rotation Estimation Net')
+print('Step 0, Load Rotation Estimation Net') # 回転行列の推定ネットワークのロード
 with sess_estpose.as_default():
     with graph_estpose.as_default():
         saver.restore(sess_estpose, '{:s}/experiments/{:s}/checkpoints_lambda250/checkpoints/chkpt-{:d}'.format(path_workspath,experiment_name,num_iterations-1))
@@ -171,7 +171,7 @@ if use_retinanet: # retinanetを使う場合
 	        detection_model_path = './demo_data/resnet50_tless_19_inf.h5'
 	        detection_model = models.load_model(detection_model_path, backbone_name='resnet50')
 
-	print('Step 0, Load RGB image')
+	print('Step 0, Load RGB image') # テスト画像のロード
 	image = cv2.imread('./demo_data/0001.png') # テスト画像:0001.pngの読み込み->全部行くならfor文で回せばおけ
 
 	#### Step 1: 2D detection 
@@ -179,21 +179,23 @@ if use_retinanet: # retinanetを使う場合
 	with sess_detect.as_default():
 	    with graph_detect.as_default():
 	        detect_image = preprocess_image(image.copy())
-	        detect_image, scale = resize_image(detect_image)
+	        detect_image, scale = resize_image(detect_image) # 検出用のサイズに変換．リサイズ画像とスケール（元のサイズと現状のサイズとの比率）
 
 	        # process image
 	        start = time.time()
-	        boxes, scores, labels = detection_model.predict_on_batch(np.expand_dims(detect_image, axis=0))
+	        boxes, scores, labels = detection_model.predict_on_batch(np.expand_dims(detect_image, axis=0)) # bbの座標，クラススコア，クラスラベル
 
 	        # correct for image scale
-	        boxes /= scale # boxes = boxes / scale = boxes / sclae <- ressize_imageから（faster-aae-tless/codebook_render/boxes.py） 
+	        boxes /= scale # boxes = boxes / scale = boxes / sclae <- ressize_imageから（faster-aae-tless/codebook_render/boxes.py） ．入力画像サイズに対応したbb座標
 
 	        obj_bb=None
 	        # visualize detections
-	        for box, score, label in zip(boxes[0], scores[0], labels[0]):        
-	            if score<0.:
+	        for box, score, label in zip(boxes[0], scores[0], labels[0]): 
+		# もしboxes.size()=(B,Class,H,W)なら，Batchの0番目に対して，Class=0番目のbox=(H,W)，Class=1番目のbox=(H,W),Class=Class-1番目のbox=(H,W)を順番に返す．
+		# 今回は，boxes=(B,検出物体数，4)=(1,n,(x1,y1,x2,y2))->検出物体数回分（厳密には最大検出可能物体数分）forを回そうとする．ただしscoreが0未満（空）ならbreak
+	            if score<0.: 
 	            	break
-	            if label+1==obj_id: # obj_idは自分で決める
+	            if label+1==obj_id: # obj_idは最初に自分で決める（どのクラスを対象物体とするか．引数）
 	            	obj_bb=np.array(box).astype(int) # (x1,y1,x2,y2)
 	            	obj_bb[2]-=obj_bb[0] # obj_bb[2] = obj_bb[2] - obj_bb[0] = x2-x1 = width
 	            	obj_bb[3]-=obj_bb[1] # obj_bb[3] = obj_bb[3] - obj_bb[1] = y2-y1 = height
